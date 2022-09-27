@@ -1,0 +1,245 @@
+---
+title: |
+  | Statistical analysis of data from an 
+  | hypocotyl measurement experiment in 
+  | *A. thaliana* seedlings
+author: "CrisprCat"
+output: 
+  pdf_document: 
+    toc: true
+---
+
+# Introduction
+This script describes the statistical analysis of an experiment in which hypocotyl length of 5 day old *A. thaliana* seedlings grown in darkness or in red light was determined. The hypocotyl length of 3 different mutants and wildtype seedlings were analysed. To identify statistical significant differences among the means of hypocotyl length of the mutants and treatments a Two-Way ANOVA is used.
+
+The data used for this example is available under DOI: 10.1038/s41477-020-0725-0 and is the source data of Figure 1b.
+
+# Setup
+## Installing and loading required packages
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+# Store package names, required for the analysis in a vector
+packages <- c("tidyverse", "car", "multcomp", "lsmeans", "multcompView")
+
+# Install packages that are not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Load packages
+invisible(lapply(packages, library, character.only = TRUE))
+```  
+
+# Load the data
+The data is usually stored in a .csv file with one column describing the "Gentoype", one column describing the "Treatment" and one describing the measured value "Hypocotyl_length".
+
+```{r}
+# Read the .csv file
+hypo <- read.csv(file = "hypocotyl_measurement.CSV", sep = ";", header = T)
+
+# Change the class of Genotype and treatment from character to factor
+hypo$Genotype <- as.factor(hypo$Genotype)
+hypo$Treatment <- as.factor(hypo$Treatment)
+```
+
+# Statistical analysis
+Key assumptions for the Two-Way ANOVA are, that the data  
+* follows a normal distribution  
+* shows homogeneity of variances    
+* is balanced
+
+As this biological data is independently and randomly sampled from a population I assume that these requirements are met. However, it is also possible to test for these assumptions. 
+
+## Check if the data is balanced
+
+```{r}
+# Generate a frequency table
+table(hypo$Genotype, hypo$Treatment)
+```
+The data of the experiment has a balanced design (Roughly equal sample sizes in the different groups).
+
+## Test the assumption of equal Variances
+With the Brown-Forsythe test the null hypothesis, that the variances of the analysed groups (hypocotyl length withn each genotype and treatment) are equal, is tested.
+
+### Brown-Forsythe test
+The Brown-Forsythe test is more robust to not gaussian distributed data than the Levene's test.
+
+```{r}
+# Test for homoscedasticity
+leveneTest(hypo$Hypocotyl_length ~ hypo$Genotype * hypo$Treatment, center = median)
+```
+As the p-value (Pr) is > 0.05, the null hypothesis cannot be rejected. 
+
+## Test the assumption of normal distribution
+The assumption of normal distribution of the data in each group = (genotype and treatment) divided by treatment can be graphically tested with a QQ-plot or with the Shapiro-Wilk's test.
+
+### QQ-plot
+When the points in the QQ-plot show linearity it suggests the data is normally distributed.
+
+```{r}
+# Create a QQ-plot for WT hypocotyl length, seedlings grown in darkness
+qqnorm(hypo$Hypocotyl_length[hypo$Genotype == 'WT' & hypo$Treatment == 'Dark'])
+qqline(hypo$Hypocotyl_length[hypo$Genotype == 'WT' & hypo$Treatment == 'Dark'])
+
+# Create a QQ-plot for *bbx20* hypocotyl length, seedlings grown in darkness
+qqnorm(hypo$Hypocotyl_length[hypo$Genotype == 'bbx20' & hypo$Treatment == 'Dark'])
+qqline(hypo$Hypocotyl_length[hypo$Genotype == 'bbx20' & hypo$Treatment == 'Dark'])
+
+# Create a QQ-plot for *bbx2122* hypocotyl length, seedlings grown in darkness
+qqnorm(hypo$Hypocotyl_length[hypo$Genotype == 'bbx2122' & hypo$Treatment == 'Dark'])
+qqline(hypo$Hypocotyl_length[hypo$Genotype == 'bbx2122' & hypo$Treatment == 'Dark'])
+
+# Create a QQ-plot for *bbx202122* hypocotyl length, seedlings grown in darkness
+qqnorm(hypo$Hypocotyl_length[hypo$Genotype == 'bbx202122' & hypo$Treatment == 'Dark'])
+qqline(hypo$Hypocotyl_length[hypo$Genotype == 'bbx202122' & hypo$Treatment == 'Dark'])
+
+# Create a QQ-plot for WT hypocotyl length, seedlings grown in red light
+qqnorm(hypo$Hypocotyl_length[hypo$Genotype == 'WT' & hypo$Treatment == 'Red'])
+qqline(hypo$Hypocotyl_length[hypo$Genotype == 'WT' & hypo$Treatment == 'Red'])
+
+# Create a QQ-plot for *bbx20* hypocotyl length, seedlings grown in red light
+qqnorm(hypo$Hypocotyl_length[hypo$Genotype == 'bbx20' & hypo$Treatment == 'Red'])
+qqline(hypo$Hypocotyl_length[hypo$Genotype == 'bbx20' & hypo$Treatment == 'Red'])
+
+# Create a QQ-plot for *bbx2122* hypocotyl length, seedlings grown in red light
+qqnorm(hypo$Hypocotyl_length[hypo$Genotype == 'bbx2122' & hypo$Treatment == 'Red'])
+qqline(hypo$Hypocotyl_length[hypo$Genotype == 'bbx2122' & hypo$Treatment == 'Red'])
+
+# Create a QQ-plot for *bbx202122* hypocotyl length, seedlings grown in red light
+qqnorm(hypo$Hypocotyl_length[hypo$Genotype == 'bbx202122' & hypo$Treatment == 'Red'])
+qqline(hypo$Hypocotyl_length[hypo$Genotype == 'bbx202122' & hypo$Treatment == 'Red'])
+```
+
+
+### Shapiro-Wilk's test
+With the Shapiro-Wilk's test the null hypothesis, that the the samples in each analysed group (hypocotyl length in each genotype, divided by treatment) follow a normal distribution is tested.
+```{r}
+# Test for normal distribution
+shapiro.test(hypo$Hypocotyl_length[hypo$Genotype == 'WT' & hypo$Treatment == 'Dark'])
+shapiro.test(hypo$Hypocotyl_length[hypo$Genotype == 'bbx20' & hypo$Treatment == 'Dark'])
+shapiro.test(hypo$Hypocotyl_length[hypo$Genotype == 'bbx2122' & hypo$Treatment == 'Dark'])
+shapiro.test(hypo$Hypocotyl_length[hypo$Genotype == 'bbx202122' & hypo$Treatment == 'Dark'])
+shapiro.test(hypo$Hypocotyl_length[hypo$Genotype == 'WT' & hypo$Treatment == 'Red'])
+shapiro.test(hypo$Hypocotyl_length[hypo$Genotype == 'bbx20' & hypo$Treatment == 'Red'])
+shapiro.test(hypo$Hypocotyl_length[hypo$Genotype == 'bbx2122' & hypo$Treatment == 'Red'])
+shapiro.test(hypo$Hypocotyl_length[hypo$Genotype == 'bbx202122' & hypo$Treatment == 'Red'])
+```
+As the p-value (Pr) is > 0.05, the null hypothesis cannot be rejected.
+
+
+## Two way ANOVA with interaction effect
+With the Two-Way ANOVA the null hypothesis, that there are no statistical significant differences among the means of the hypocotyl length of the mutants divided by treatment, is tested.
+
+```{r}
+# Fit an Analysis of Variance model
+res.aov <- aov(data = hypo, Hypocotyl_length ~ Genotype * Treatment)
+
+# Show the results of the fitted model
+summary(res.aov)
+```
+As the p-value (Pr) is > 0.05, the null hypothesis cannot be rejected.
+
+
+## Multiple comparisons
+To determine if the means of specific groups are statistically significant different from each other the Tukey HSD post-hoc test is computed.
+```{r}
+# Perform the post-hoc test
+TukeyHSD(res.aov, conf.level = 0.95)
+```
+When p adj value is < 0.05 the null hypothesis, that the means of the two compared groups are not statistically significant different is rejected.
+
+To assign letters to each group, that indicate groups that are statistically significant different from each other the cld() function is used.
+```{r}
+# Compute least-square means
+lsm = lsmeans(res.aov, ~ Genotype + Treatment)
+
+# Create a cld (compact letter display) object of the pairwise comparisons
+CLD = cld(lsm, Letters = letters, adjust = "sidak", sort = TRUE, reversed = TRUE)
+CLD$.group=gsub(" ", "", CLD$.group)
+
+# Display the letters assigned to each group 
+print(CLD)
+
+```
+
+# Data visualization
+## Calculate summary statistics
+These summary statistics are used to create a meaningful data visualization of the experiments result. 
+
+```{r}
+# Calculate summary statistics
+hypo_summary = hypo %>%
+  group_by(Genotype, Treatment) %>%
+  summarise(mean_hypo = mean(Hypocotyl_length), # Calculate the mean of the hypocotyl
+                                                # length for each genotype/treatment
+            sd_hypo = sd(Hypocotyl_length), # Calculate the standard deviation of 
+                                            # hypocotyl length for each genotype/treatment
+            n_hypo = n(), # Calculate the number of measurements of hypocotyl length
+                          # for each genotype
+            SE_hypo = sd_hypo / sqrt(n()), # Calculate the standard error of the mean of
+                                           # hypocotyl length for each genotype/treatment
+            max_hypo = max(Hypocotyl_length)) %>% # Define the maximum of hypocotyl
+                                                  # length for each genotype/treatment
+  arrange(desc(mean_hypo)) # sort the data by the mean in descending order
+
+# Add a column with the letters indicating statistical significant different groups
+hypo_summary$diff = print(CLD$.group)
+
+# Display the summary statistics
+print(hypo_summary)
+```
+
+## Create a plot and save it as a pdf
+
+```{r}
+# Save the graph as a pdf
+pdf("hypocotyl_measurement.pdf", width = 4 , height = 6)
+# Create a plot of the hypocotyl length vs. Genotype grouped by treatment
+hypo_plot = ggplot(data = hypo,
+                   aes(x = Genotype, y = Hypocotyl_length, fill = Treatment)) +
+  # Create a box plot and customize its appearance
+  stat_boxplot(geom = 'errorbar',
+               width = 0.25,
+               position = position_dodge(0.75)) +
+  geom_boxplot(stat = "boxplot",
+               aes(y = Hypocotyl_length)) +
+  scale_x_discrete(limits=c("WT", "bbx20", "bbx2122", "bbx202122")) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90,
+                                   size=12,
+                                   hjust = 1,
+                                   vjust = 0.5,
+                                   face = c("plain", "italic", "italic", "italic")),
+        axis.title.y = element_text(size = 12)) +
+  theme(axis.ticks = element_line()) +
+  ylab("Hypocotyl length (mm)") +
+  xlab(NULL) +
+  scale_y_continuous(breaks = c(0,2,4,6,8,10,12,14,16),
+                     expand = c(0,0),
+                     limits = c(0,18)) +
+  geom_text(data = hypo_summary,
+            aes(y = max_hypo, label = diff),
+            position = position_dodge(0.75),
+            vjust = -1,
+            size=6) +
+  geom_text(data = hypo_summary,
+            aes(y = 0.5, label = n_hypo),
+            position = position_dodge(0.75),
+            hjust = -0.3,
+            size = 4) +
+  geom_text(data = hypo_summary,
+            aes(y = 0.5, label = 'n ='),
+            position = position_dodge(0.75),
+            hjust = 0.85,
+            size = 4) +
+  scale_fill_manual(values = c("#787878", "#FF6161")) +
+  theme(legend.title = element_blank())
+
+hypo_plot
+dev.off()
+  
+  
+
+hypo_plot
+```
